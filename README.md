@@ -1,1 +1,4 @@
-# MAI_Logic_programming
+# Логическое программирование. МАИ. Курс 2.
+
+В наличии:   
+- lab1: task1 - var 7 и var 11, task2 - var 2.
