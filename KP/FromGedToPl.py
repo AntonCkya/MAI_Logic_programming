@@ -92,35 +92,29 @@ else:
     res = []
     gedcomFile = open(sys.argv[1], "r", encoding='utf-8')
     for line in gedcomFile:
-        for each in ["SURN", "GIVN", "FAMS", "FAMC", "SEX"]:
+        for each in ["NAME", "FAMS", "FAMC", "SEX"]:
             if each in line:
                 res.append(line)
     gedcomFile.close()
 
-    for i in range(0, len(res)):
+    for i in range(1, len(res)):
         listOfWords = res[i].split(' ') # Разбиваем строку на слова
         del listOfWords[0] # Удаляем число, обозначающее уровень
         res[i] = listOfWords
         for k in range(len(res[i])):
             res[i][k] = res[i][k].replace("\n", "") # Убираем символ перевода строки у слова
-            res[i][k] = res[i][k].replace("'", "\\'")  # Добавляем экранированный символ '\' перед d' - это ломает строки в прологе.
-            if ',' in res[i][k]:
-                res[i][k] = res[i][k].replace(",", "")  # Убираем символ запятой
-                for j in range(len(res[i]) - k - 1): # Удаляем всё, что после запятой. Остаётся только полезная информация
-                    res[i].pop()
-                break
 
-    for i in range(len(res)):
-        if res[i][0] == "SURN":
-            tmp = ""
-            for j in range(1, len(res[i+1])):
-                tmp = tmp + res[i+1][j] + " " # Собираем всё имя в одну строку
-            res[i][1] = tmp + res[i][1] # Имя = имя + фамилия
-            res[i][1] = translator(res[i][1]) # Переводим имена на английский язык
+
+    for i in range(1, len(res)):
+        if res[i][0] == "NAME":
+            res[i][2] = res[i][2].replace("/", "")
+            res[i][1] = res[i][1] + " " + res[i][2]
+            del res[i][2]
+            res[i][1] = translator(res[i][1])  # Переводим имена на английский язык
 
     k = 0
     for i in range(len(res) - 1, 0, -1): # Удаляем записи с пустыми или неизвестными именами
-        if res[i][0] != "SURN":
+        if res[i][0] != "NAME":
             k = k + 1
         else:
             if (len(res[i][1]) == 0) or (res[i][1][0] == '?') or (res[i][1][-1] == '?') or (res[i][1][0:2] == "N "):
@@ -134,7 +128,7 @@ else:
     cur_name = ""
     cur_sex = ""
     for element in res:
-        if element[0] == "SURN":
+        if element[0] == "NAME":
             cur_name = element[1]
             continue
         if element[0] == "SEX":

@@ -32,15 +32,14 @@
 
 ## Получение родословного дерева
 
-Использовать своё родословное дерево не хочу по личным причинам, поэтому использовал предложенное дерево родословной европейской знати. С помощью языка Python удалось посчитать, что количество людей в нём **33 591**.
+Реализовал своё родословное дерево при помощи сайта  `MyHeritage.com`. По итогу, получилось родословное дерево на 41 персону.
 
 ## Конвертация родословного дерева
 
 Для конвертации использовал императивный язык программирования Python, так как считаю, что он отлично подходит для парсинга текста в данной задаче и, при этом уже был опыт работы с ним. <br>  
 Основные моменты программы:   
 1. Считываем из файла GEDCOM строки, содержащие теги:
- - SURN - фамилия;
- - GIVN - имя (GIVN + SURN = полное имя);
+ - NAME - имя + /фамилия/;
  - FAMS - семья его родителей (где он был ребенком);
  - FAMC - семья (или семьи), где он сам был родителем;
  - SEX - пол;
@@ -48,44 +47,28 @@
     res = []
     gedcomFile = open(sys.argv[1], "r", encoding='utf-8')
     for line in gedcomFile:
-        for each in ["SURN", "GIVN", "FAMS", "FAMC", "SEX"]:
+        for each in ["NAME", "FAMS", "FAMC", "SEX"]:
             if each in line:
                 res.append(line)
     gedcomFile.close()
  ```
  2. Очищаем данные от лишней информации, представляем в удобном виде и переводим имена на английский язык:
  ```python
-for i in range(0, len(res)):
+
+    for i in range(1, len(res)):
         listOfWords = res[i].split(' ') # Разбиваем строку на слова
         del listOfWords[0] # Удаляем число, обозначающее уровень
         res[i] = listOfWords
         for k in range(len(res[i])):
             res[i][k] = res[i][k].replace("\n", "") # Убираем символ перевода строки у слова
-            res[i][k] = res[i][k].replace("'", "\\'")  # Добавляем экранированный символ '\' перед d' - иначе это ломает строки в прологе.
-            if ',' in res[i][k]:
-                res[i][k] = res[i][k].replace(",", "")  # Убираем символ запятой
-                for j in range(len(res[i]) - k - 1): # Удаляем всё, что после запятой. Остаётся только полезная информация
-                    res[i].pop()
-                break
 
-for i in range(len(res)):
-        if res[i][0] == "SURN":
-            tmp = ""
-            for j in range(1, len(res[i+1])):
-                tmp = tmp + res[i+1][j] + " " # Собираем всё имя в одну строку
-            res[i][1] = tmp + res[i][1] # Имя = имя + фамилия
-            res[i][1] = translator(res[i][1]) # Переводим имена на английский язык
 
-k = 0
-    for i in range(len(res) - 1, 0, -1): # Удаляем записи с пустыми или неизвестными именами
-        if res[i][0] != "SURN":
-            k = k + 1
-        else:
-            if (len(res[i][1]) == 0) or (res[i][1][0] == '?') or (res[i][1][-1] == '?') or (res[i][1][0:2] == "N "):
-                while k >= 0:
-                    del res[i]
-                    k = k - 1
-            k = 0
+    for i in range(1, len(res)):
+        if res[i][0] == "NAME":
+            res[i][2] = res[i][2].replace("/", "")
+            res[i][1] = res[i][1] + " " + res[i][2]
+            del res[i][2]
+            res[i][1] = translator(res[i][1])  # Переводим имена на английский язык
 
  ```
 3. Собираем список семей в формате [номер семьи, [родители], [дети]].
@@ -101,6 +84,8 @@ k = 0
                 else:
                     facts.append("mother(\'" + parent[0] + "\', \'" + child[0] + "\').\n")
 ```
+
+**Примечание:** результат преобразования находится файле `facts.pl`, 
 
 ## Предикат поиска родственника
 
@@ -121,10 +106,88 @@ cousin(X, Y):-
 	sex(Y,m).
 
 ```
+Примеры запуска на произвольных данных:
+```
+?- cousin('Maxim', 'Dima').
+true.
+
+?- cousin('Maxim', Y).
+Y = 'Dima'.
+```
 
 ## Определение степени родства
 
-Приведите описание метода решения, важные фрагменты исходного кода, протокол работы.
+Реализовал предикаты поиска жены/мужа, бабушки/дедушки, внучки/внука, дочери/сына. Остальное взял из `task3.pl`. 
+Сначала рассматриваем тривиальные случаи, когда родство находится сразу же:
+```prolog
+relative('father', X, Y):- father(X, Y).
+relative('mother', X, Y):- mother(X, Y).
+...
+```
+
+Когда совпадений не нашлось, необходимо искать более глубокие связи родства. Для этого воспользуемся поиском в глубину (В данном случае выбор пал в сторону экономии памяти). Предикат `dfs` находит все пути из A в B и затем переводит список имён в список отношений:
+```prolog
+relative(W, X, Y):- 
+	dfs(X, Y, W).
+
+% Для перевода списка имён в список отношений.
+
+translator([X, Y], [R]):-
+	relative(R, X, Y).
+translator([X, Y|T], [P, Q|R]):-
+	relative(P, X, Y),
+	translator([Y|T], [Q|R]), !.
+
+move(X, Y):-
+	father(X, Y);
+	mother(X, Y);
+	brother(X, Y);
+	sister(X, Y);
+	son(X, Y);
+	daughter(X, Y);
+	husband(X, Y);
+	wife(X, Y),
+	grandfather(X, Y),
+	grandmother(X, Y),
+	grandson(X, Y),
+	granddaughter(X, Y).
+
+% Depth-First Search
+prolong([X|T], [Y, X|T]):-
+	move(X, Y),
+	not(member(Y, [X|T])).
+path1([X|T], X, [X|T]).
+path1(L, Y, R):-
+	prolong(L, T),
+	path1(T, Y, R).
+dfs(X, Y, R2):-
+	path1([X], Y, R1),
+	translator(R1, R2).
+```
+Пример запуска:
+```prolog
+?- relative(W, 'Elena Zatsepina', 'Elena Sysoeva').
+W = grandmother;
+W = [daughter, daughter] ;
+W = [sister, daughter, daughter] ;
+W = [sister, sister, daughter, daughter] ;
+W = [sister, sister, daughter, daughter] ;
+W = [daughter, father, sister, daughter, daughter] ;
+W = [daughter, father, sister, daughter, daughter] ;
+W = [daughter, father, daughter, daughter] ;
+W = [sister, daughter, father, daughter, daughter] ;
+W = [sister, daughter, father, daughter, daughter] ;
+W = [sister, daughter, daughter] ;
+W = [sister, sister, daughter, daughter] ;
+W = [daughter, father, sister, daughter, daughter] ;
+W = [sister, daughter, daughter] ;
+W = [sister, sister, daughter, daughter] ;
+W = [daughter, father, sister, daughter, daughter] ;
+W = [daughter, father, daughter, daughter] ;
+W = [sister, daughter, father, daughter, daughter] ;
+W = [daughter, father, daughter, daughter] ;
+W = [sister, daughter, father, daughter, daughter].
+ ```
 
 ## Естественно-языковый интерфейс
 
